@@ -1,0 +1,101 @@
+name: elk-prod
+services:
+  elasticsearch1:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.15.0}
+    container_name: elasticsearch1
+    environment:
+      - cluster.name=es-cluster
+      - node.name=es-node-1
+      - node.roles=master,data
+      - network.host=0.0.0.0
+      - discovery.seed_hosts=elasticsearch1,elasticsearch2,elasticsearch3
+      - cluster.initial_master_nodes=elasticsearch1,elasticsearch2,elasticsearch3
+      - ELASTIC_PASSWORD_FILE=/run/secrets/elastic_password
+      - xpack.security.enabled=true
+    secrets:
+      - elastic_password
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata1:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
+  elasticsearch2:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.15.0}
+    container_name: elasticsearch2
+    environment:
+      - cluster.name=es-cluster
+      - node.name=es-node-2
+      - node.roles=master,data
+      - network.host=0.0.0.0
+      - discovery.seed_hosts=elasticsearch1,elasticsearch2,elasticsearch3
+      - cluster.initial_master_nodes=elasticsearch1,elasticsearch2,elasticsearch3
+      - ELASTIC_PASSWORD_FILE=/run/secrets/elastic_password
+      - xpack.security.enabled=true
+    secrets:
+      - elastic_password
+    volumes:
+      - esdata2:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
+  elasticsearch3:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.15.0}
+    container_name: elasticsearch3
+    environment:
+      - cluster.name=es-cluster
+      - node.name=es-node-3
+      - node.roles=master,data
+      - network.host=0.0.0.0
+      - discovery.seed_hosts=elasticsearch1,elasticsearch2,elasticsearch3
+      - cluster.initial_master_nodes=elasticsearch1,elasticsearch2,elasticsearch3
+      - ELASTIC_PASSWORD_FILE=/run/secrets/elastic_password
+      - xpack.security.enabled=true
+    secrets:
+      - elastic_password
+    volumes:
+      - esdata3:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${LOGSTASH_VERSION:-8.15.0}
+    container_name: logstash
+    environment:
+      - ELASTIC_PASSWORD_FILE=/run/secrets/elastic_password
+    secrets:
+      - elastic_password
+    volumes:
+      - ./logstash/config:/usr/share/logstash/config
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+    ports:
+      - "5044:5044"
+    depends_on:
+      - elasticsearch1
+      - elasticsearch2
+      - elasticsearch3
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${KIBANA_VERSION:-8.15.0}
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch1:9200,http://elasticsearch2:9200,http://elasticsearch3:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD_FILE=/run/secrets/elastic_password
+    secrets:
+      - elastic_password
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch1
+      - elasticsearch2
+      - elasticsearch3
+    restart: unless-stopped
+
+volumes:
+  esdata1:
+  esdata2:
+  esdata3:
+
+secrets:
+  elastic_password:
+    file: ./secrets/elastic_password.txt

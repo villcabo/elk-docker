@@ -1,0 +1,55 @@
+name: elk
+services:
+  elasticsearch:
+    image: elasticsearch:${ELASTIC_VERSION:-8.15.0}
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g  # Ajustar según los recursos disponibles
+      - ELASTIC_PASSWORD_FILE=/run/secrets/elastic_password  # Usando un secreto
+    secrets:
+      - elastic_password
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  logstash:
+    image: logstash:${LOGSTASH_VERSION:-8.15.0}
+    container_name: logstash
+    volumes:
+      - ./logstash/config:/usr/share/logstash/config
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+    ports:
+      - "5044:5044"
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+  kibana:
+    image: kibana:${KIBANA_VERSION:-8.15.0}
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD_FILE=/run/secrets/elastic_password  # Usando un secreto
+    secrets:
+      - elastic_password
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+volumes:
+  esdata:
+
+secrets:
+  elastic_password:
+    file: ./secrets/elastic_password.txt
